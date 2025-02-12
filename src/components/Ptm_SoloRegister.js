@@ -1,18 +1,45 @@
 import React, { useState, useRef, useEffect } from "react";
+import { QrReader } from "react-qr-reader";
 import styles from './CSS_SoloRegister';
 
 const Ptm_SoloRegister = (props) => {
-  const [name, setName] = useState("");
+  const [rollNo, setRollNo] = useState("");
+  const [labelName, setLabelName] = useState("");
   const [numImages, setNumImages] = useState(15); // Default: 15 images
   const [errorMessage, setErrorMessage] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isQRScanning, setIsQRScanning] = useState(false);
   const [capturedCount, setCapturedCount] = useState(0);  // State to track the captured images count
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
   // Handlers for the input fields
-  const handleNameChange = (e) => setName(e.target.value);
+  const handleRollNoChange = (e) => setRollNo(e.target.value);
+  const handleLabelNameChange = (e) => setLabelName(e.target.value);
   const handleNumImagesChange = (e) => setNumImages(e.target.value);
+
+  // QR Code scanning functions
+  const handleQRScan = (result) => {
+    if (result) {
+      const values = result.split(",");
+      if (values.length >= 2) {
+        setRollNo(values[0].trim());
+        setLabelName(values[1].trim());
+        setIsQRScanning(false);
+        props.showAlert("QR Code scanned successfully!", "success");
+      } else {
+        setErrorMessage("Invalid QR code format. Please scan again.");
+      }
+    }
+  };
+
+  const handleQRError = (err) => {
+    console.error("QR scanning error:", err);
+    setErrorMessage("Failed to scan QR code. Please try again.");
+  };
+
+  const handleStartQRScanner = () => setIsQRScanning(true);
+  const handleStopQRScanner = () => setIsQRScanning(false);
 
   // Start Camera
   const handleStartCamera = async () => {
@@ -31,7 +58,7 @@ const Ptm_SoloRegister = (props) => {
       console.log("Camera started successfully.");
     } catch (err) {
       console.error("Camera access error details:", err);
-      switch (err.name) {
+      switch (err.labelName) {
         case "NotAllowedError":
           setErrorMessage(
             "Camera access is denied. Please enable it in your browser settings."
@@ -66,8 +93,8 @@ const Ptm_SoloRegister = (props) => {
 
   // Register Face
   const handleRegisterFace = async () => {
-    if (!name) {
-      setErrorMessage("Name is required for registration");
+    if (!rollNo || !labelName) {
+      setErrorMessage("Roll number, and label name are required.");
       return;
     }
     if (numImages <= 0 || numImages === "") {
@@ -137,7 +164,8 @@ const Ptm_SoloRegister = (props) => {
       const averageFaceEncoding = calculateAverageEmbedding(capturedFaceEncodings);
 
       const data = {
-        label: name,
+        label: labelName,
+        rollNo: rollNo,
         faceEncoding: averageFaceEncoding,
       };
       // console.log(data.faceEncoding);
@@ -163,7 +191,7 @@ const Ptm_SoloRegister = (props) => {
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          props.showAlert(`${name} registered successfully!`, 'info');
+          props.showAlert(`${labelName} registered successfully!`, 'info');
         } else {
           console.error(result.message);
           setErrorMessage(result.message);
@@ -213,46 +241,52 @@ const Ptm_SoloRegister = (props) => {
   return (
     <div style={styles.container}>
       <h1 style={styles.header}>Individual Face Registration [PTM]</h1>
-  
-      {/* Card container */}
+
       <div style={styles.card}>
-        {/* Input Group Row */}
-        <div style={styles.inputRow}>
-          {/* Name Input */}
-          <div style={styles.inputGroup}>
-            <label htmlFor="name" style={styles.label}>
-              Name:
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={handleNameChange}
-              style={styles.input}
-              placeholder="Enter your name"
-            />
-          </div>
-  
-          {/* Number of Images Input */}
-          <div style={styles.inputGroup}>
-            <label htmlFor="numImages" style={styles.label}>
-              Number of Images:
-            </label>
-            <input
-              type="number"
-              id="numImages"
-              value={numImages}
-              onChange={handleNumImagesChange}
-              style={styles.input}
-              placeholder="Enter number of images"
-              min="1"
-            />
-          </div>
-        </div>
-  
+        {/* QR Code Scanner Section */}
+        <button
+          onClick={isQRScanning ? handleStopQRScanner : handleStartQRScanner}
+          style={styles.button}
+        >
+          {isQRScanning ? "Stop QR Scanner" : "Scan QR Code"}
+        </button>
+
+        {isQRScanning && (
+          <QrReader
+            onResult={(result, error) => {
+              if (result) handleQRScan(result.text);
+              if (error) handleQRError(error);
+            }}
+            style={{ width: "100%" }}
+          />
+        )}
+
+        {/* Input Fields */}
+        <input
+          type="text"
+          placeholder="Enter Roll Number"
+          value={rollNo}
+          onChange={handleRollNoChange}
+          style={styles.input}
+        />
+        <input
+          type="text"
+          placeholder="Enter Label Name"
+          value={labelName}
+          onChange={handleLabelNameChange}
+          style={styles.input}
+        />
+        <input
+          type="number"
+          placeholder="Number of Images (default: 15)"
+          value={numImages}
+          onChange={handleNumImagesChange}
+          style={styles.input}
+        />
+
         {/* Error Message */}
         {errorMessage && <div style={styles.errorMessage}>{errorMessage}</div>}
-  
+
         {/* Camera View */}
         <div style={styles.cameraContainer}>
           {isCameraActive ? (
@@ -261,31 +295,34 @@ const Ptm_SoloRegister = (props) => {
             <div style={styles.placeholder}>Camera is off</div>
           )}
         </div>
-  
+
         {/* Image Count Section */}
         <div style={styles.imageCountContainer}>
           <p style={styles.imageCountText}>
             Images Captured: {capturedCount}/{numImages}
           </p>
         </div>
-  
+
         {/* Button Section */}
         <div style={styles.buttonsRow}>
           <button
-            onClick={() => setIsCameraActive(true)}
+            onClick={handleStartCamera}
             style={styles.button}
             disabled={isCameraActive}
           >
             Start Camera
           </button>
           <button
-            onClick={() => setIsCameraActive(false)}
-            style={{...styles.button, backgroundColor: '#d40707d8'}}
+            onClick={handleStopCamera}
+            style={{ ...styles.button, backgroundColor: "#d40707d8" }}
             disabled={!isCameraActive}
           >
             Stop Camera
           </button>
-          <button onClick={handleRegisterFace} style={{...styles.button, backgroundColor: 'teal'}}>
+          <button
+            onClick={handleRegisterFace}
+            style={{ ...styles.button, backgroundColor: "teal" }}
+          >
             Register Face
           </button>
         </div>

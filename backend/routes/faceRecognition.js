@@ -117,16 +117,16 @@ router.post('/verify-face', fetchuser, async (req, res) => {
 // ROUTE 3: Register Face data using: POST "api/face/register-face-ptm". Login required
 router.post('/register-face-ptm', fetchuser, async (req, res) => {
     try {
-        const { faceEncoding, label } = req.body;
+        const { faceEncoding, labelName, rollNo } = req.body;
 
-        if (!faceEncoding || !label) {
+        if (!faceEncoding || !labelName || !rollNo) {
             return res.status(400).json({ error: "faceEncoding and label are required!" });
         }
 
         // console.log("Received data:", req.body);
 
         // Fetch the existing face data for the user and label
-        let existingPTMFaceData = await PTM_FaceData.findOne({ user: req.user.id, label: label });
+        let existingPTMFaceData = await PTM_FaceData.findOne({ user: req.user.id, labelName: labelName, rollNo: rollNo });
 
         // If no existing face data, create a new document with the provided encoding
         if (!existingPTMFaceData) {
